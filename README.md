@@ -6,6 +6,8 @@ Pick a local model size — 3B, 7–8B, 12B, 26B, 31B, or 70–72B — and see w
 
 Already have a Mac, or eyeing one? Type it into **Find your Mac** (e.g. `M2 Max`, `Mac mini`, `studio ultra`) to narrow the list to just those machines.
 
+Click **This is my Mac** on any card and pick your memory size to pin it at the top of the results: it shows whether your Mac can run the chosen model and how fast, and every other card shows how much faster or slower it would be. It's saved in your browser (localStorage), so it survives reloads; **Forget this Mac** clears it.
+
 A companion to [ModelAssist](https://github.com/justwaters/ModelAssist), which goes the other way: machine in, models out.
 
 ## How it estimates

@@ -1029,3 +1029,105 @@ button { font-family: inherit; }
   .size-row { flex-direction: column; align-items: stretch; }
   .size-row__search { max-width: none; margin-left: 0; }
 }
+
+/* ---------- your Mac ---------- */
+.my-mac[hidden] { display: none; }
+.my-mac {
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  padding: 18px 20px;
+  margin-bottom: 20px;
+}
+.my-mac.model-row--good { border-left-color: var(--good); }
+.my-mac.model-row--tight { border-left-color: var(--warn); }
+.my-mac.model-row--over { border-left-color: var(--over); }
+.my-mac.model-row--tight .fit-gauge__fill { background: var(--warn); }
+.my-mac__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.my-mac__head h3 { font-size: 16.5px; font-weight: 600; }
+.my-mac__head .params {
+  font-family: var(--font-mono);
+  font-weight: 400;
+  color: var(--ink-muted);
+  font-size: 14px;
+  margin-left: 6px;
+}
+.my-mac__head .model-row__blurb { margin-top: 2px; }
+.my-mac__eyebrow {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+.my-mac__verdict {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--over);
+  max-width: 62ch;
+}
+
+.mine-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mine-btn,
+.mine-forget,
+.ram-picker__option,
+.ram-picker__cancel {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mine-btn:hover,
+.mine-forget:hover,
+.ram-picker__option:hover { border-color: var(--accent); color: var(--accent); }
+.ram-picker__option { font-family: var(--font-mono); }
+.ram-picker__cancel { border-color: transparent; background: none; text-decoration: underline; }
+.ram-picker__cancel:hover { color: var(--ink); }
+.mine-forget { flex: none; }
+.mine-badge {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-tint);
+  border: 1px solid var(--accent);
+  padding: 4px 10px;
+}
+.ram-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ram-picker__prompt { font-size: 13px; color: var(--ink); margin-right: 4px; }
+
+.vs-mine { color: var(--ink-muted); }
+.vs-mine--faster { color: var(--good); }
+.vs-mine--slower { color: var(--warn); }
+
+.excluded-row { flex-wrap: wrap; align-items: center; justify-content: flex-start; }
+.excluded-row .need { margin-left: auto; }
+.excluded-row .mine-btn,
+.excluded-row .mine-badge { font-size: 11.5px; padding: 1px 7px; }
+/* The memory picker needs the full width, so it drops to its own line. */
+.excluded-row__mine:has(.ram-picker) { flex-basis: 100%; order: 3; }
+
+@media (max-width: 560px) {
+  .my-mac__head { flex-direction: column; }
+}

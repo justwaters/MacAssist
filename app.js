@@ -15,6 +15,7 @@
     raiseGpuLimit: document.getElementById("raise-gpu-limit"),
     resetFilters: document.getElementById("reset-filters"),
     list: document.getElementById("results-list"),
+    myMac: document.getElementById("my-mac"),
     excludedWrap: document.getElementById("excluded-wrap"),
     excludedSummary: document.getElementById("excluded-summary"),
     excludedList: document.getElementById("excluded-list"),
@@ -33,6 +34,7 @@
   };
 
   const MAX_COMPARE = 4;
+  const MY_MAC_KEY = "macassist.myMac";
   const RUNTIME_OVERHEAD_GB = 1;
   const TIGHT_RATIO = 0.8;
   const RAISED_LIMIT_RESERVE_GB = 8;
@@ -70,7 +72,143 @@
     forms: new Set(FORMS.map((f) => f.id)),
     tiers: new Set(TIERS.map((t) => t.id)),
     compareSet: new Set(),
+    myMac: loadMyMac(),
+    pickingRamFor: null,
   };
+
+  // ---------- "my Mac" (persisted in localStorage) ----------
+
+  // Returns { id, ramGB } or null. Drops anything that no longer matches the catalog,
+  // e.g. after a Mac's id or memory options change.
+  function loadMyMac() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(MY_MAC_KEY));
+      const mac = saved && MACS.find((m) => m.id === saved.id);
+      return mac && mac.ram.includes(saved.ramGB) ? { id: saved.id, ramGB: saved.ramGB } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function setMyMac(id, ramGB) {
+    state.myMac = { id, ramGB };
+    state.pickingRamFor = null;
+    try {
+      localStorage.setItem(MY_MAC_KEY, JSON.stringify(state.myMac));
+    } catch {
+      // Storage blocked (e.g. some private modes) — still works for this visit.
+    }
+    render();
+  }
+
+  function forgetMyMac() {
+    state.myMac = null;
+    state.pickingRamFor = null;
+    try {
+      localStorage.removeItem(MY_MAC_KEY);
+    } catch {}
+    render();
+  }
+
+  // Memory size decides fit, so a Mac with several options asks which one you have first.
+  function claimMac(mac) {
+    if (mac.ram.length === 1) setMyMac(mac.id, mac.ram[0]);
+    else {
+      state.pickingRamFor = mac.id;
+      render();
+    }
+  }
+
+  // The saved Mac evaluated against the current model, at its actual memory size.
+  function computeMyMac(fp) {
+    if (!state.myMac) return null;
+    const mac = MACS.find((m) => m.id === state.myMac.id);
+    const fit = computeFit(mac, fp);
+    const config = fit.configs.find((c) => c.ramGB === state.myMac.ramGB);
+    const runs = config.status !== "over";
+    const raisedLimitGB = Math.max(config.limitGB, config.ramGB - RAISED_LIMIT_RESERVE_GB);
+    return { mac, config, runs, tps: fit.tps, tpsFull: fit.tpsFull, fitsIfRaised: !runs && fp.needGB <= raisedLimitGB };
+  }
+
+  // Controls shared by result rows and excluded rows: the claim button, or the memory picker.
+  function renderMineControls(mac) {
+    const isMine = state.myMac && state.myMac.id === mac.id;
+    if (state.pickingRamFor === mac.id) {
+      return `
+        <div class="ram-picker" role="group" aria-label="Which memory size is yours?">
+          <span class="ram-picker__prompt">Which memory size is yours?</span>
+          ${mac.ram.map((r) => `<button type="button" class="ram-picker__option" data-mine-ram="${r}">${r} GB</button>`).join("")}
+          <button type="button" class="ram-picker__cancel" data-mine-cancel>Cancel</button>
+        </div>`;
+    }
+    if (isMine) {
+      return `<span class="mine-badge">Your Mac · ${state.myMac.ramGB} GB</span>`;
+    }
+    return `<button type="button" class="mine-btn" data-mine-claim>This is my Mac</button>`;
+  }
+
+  function bindMineControls(el, mac) {
+    const claim = el.querySelector("[data-mine-claim]");
+    if (claim) claim.addEventListener("click", () => claimMac(mac));
+    el.querySelectorAll("[data-mine-ram]").forEach((btn) => {
+      btn.addEventListener("click", () => setMyMac(mac.id, parseInt(btn.dataset.mineRam, 10)));
+    });
+    const cancel = el.querySelector("[data-mine-cancel]");
+    if (cancel) {
+      cancel.addEventListener("click", () => {
+        state.pickingRamFor = null;
+        render();
+      });
+    }
+  }
+
+  // "2.1× faster than your Mac" — only when your Mac can run the model at all.
+  function relativeToMine(mac, tps, mine) {
+    if (!mine || !mine.runs || mine.mac.id === mac.id) return "";
+    const ratio = tps / mine.tps;
+    if (ratio >= 1.05) return ` · <span class="vs-mine vs-mine--faster">${ratio.toFixed(1)}× faster than your Mac</span>`;
+    if (ratio <= 0.95) return ` · <span class="vs-mine vs-mine--slower">${Math.round((1 - ratio) * 100)}% slower than your Mac</span>`;
+    return ` · <span class="vs-mine">same speed as your Mac</span>`;
+  }
+
+  function renderMyMacPanel(fp, mine) {
+    els.myMac.hidden = !mine;
+    if (!mine) return;
+    const { mac, config } = mine;
+    const pct = Math.min(Math.round(config.ratio * 100), 100);
+
+    let verdict;
+    if (mine.runs) {
+      verdict = `
+        <div class="speed">
+          <span class="speed__value">~${formatTps(mine.tps)}</span>
+          <span class="speed__unit">tok/s</span>
+          <span class="speed__label">${speedLabel(mine.tps)} · ~${formatTps(mine.tpsFull)} tok/s with ${formatContext(fp.contextTokens)} context full</span>
+        </div>
+        <div class="fit-gauge">
+          <div class="fit-gauge__track"><div class="fit-gauge__fill" style="width:${pct}%"></div></div>
+          <span class="fit-gauge__label">${pct}% of the ~${formatGB(config.limitGB)} GB your GPU can use${config.status === "tight" ? " — a tight fit" : ""}</span>
+        </div>`;
+    } else {
+      verdict = `
+        <p class="my-mac__verdict">Can't run a ${fp.size.label} model at ${fp.quant.id} — it needs ~${formatGB(fp.needGB)} GB, and your ${config.ramGB} GB Mac lets the GPU use ~${formatGB(config.limitGB)} GB.
+        ${mine.fitsIfRaised ? "It would fit if you raise the GPU memory limit (under Advanced)." : "Try a smaller quantization, a shorter context, or a smaller model."}</p>`;
+    }
+
+    els.myMac.className = `my-mac model-row--${mine.runs ? config.status : "over"}`;
+    els.myMac.innerHTML = `
+      <div class="my-mac__head">
+        <div>
+          <span class="my-mac__eyebrow">Your Mac</span>
+          <h3>${macTitle(mac)}</h3>
+          <p class="model-row__blurb">${mac.variant} · ${config.ramGB} GB · ${mac.bandwidthGBps} GB/s</p>
+        </div>
+        <button type="button" class="mine-forget" data-mine-forget>Forget this Mac</button>
+      </div>
+      ${verdict}
+    `;
+    els.myMac.querySelector("[data-mine-forget]").addEventListener("click", forgetMyMac);
+  }
 
   // ---------- building controls ----------
 
@@ -330,7 +468,7 @@
       .join("");
   }
 
-  function renderMacRow(result) {
+  function renderMacRow(result, mine) {
     const { mac, chosen, status, tps, tpsFull } = result;
     const pct = Math.min(Math.round(chosen.ratio * 100), 100);
     const isCompared = state.compareSet.has(mac.id);
@@ -360,7 +498,7 @@
         <div class="speed">
           <span class="speed__value">~${formatTps(tps)}</span>
           <span class="speed__unit">tok/s</span>
-          <span class="speed__label">${speedLabel(tps)} · ~${formatTps(tpsFull)} tok/s with ${formatContext(fp.contextTokens)} context full</span>
+          <span class="speed__label">${speedLabel(tps)} · ~${formatTps(tpsFull)} tok/s with ${formatContext(fp.contextTokens)} context full${relativeToMine(mac, tps, mine)}</span>
         </div>
         <div class="model-row__spec">
           <span><span class="spec-label">bandwidth</span>${mac.bandwidthGBps} GB/s</span>
@@ -376,12 +514,14 @@
           ${renderRamPills(result)}
         </div>
         ${mac.note ? `<p class="row-note">${mac.note}</p>` : ""}
+        <div class="mine-row">${renderMineControls(mac)}</div>
       </div>
     `;
 
     row.querySelector("[data-compare-id]").addEventListener("change", (e) => {
       toggleCompare(mac.id, e.target.checked);
     });
+    bindMineControls(row, mac);
 
     return row;
   }
@@ -401,8 +541,10 @@
     }
     row.innerHTML = `
       <span class="name">${mac.name} · ${mac.chip} <span class="mono">(${mac.variant})</span></span>
+      <span class="excluded-row__mine">${renderMineControls(mac)}</span>
       <span class="need">${reason}</span>
     `;
+    bindMineControls(row, mac);
     return row;
   }
 
@@ -410,7 +552,9 @@
     const fp = computeFootprint();
     const budget = parseFloat(els.budget.value) || 0;
     const terms = searchTerms();
+    const mine = computeMyMac(fp);
     renderFootprintNote(fp);
+    renderMyMacPanel(fp, mine);
 
     const fitting = [];
     const excluded = [];
@@ -434,7 +578,7 @@
         : `<strong>No Mac in this selection can run it.</strong> Try a smaller quantization or shorter context, turn on the raised GPU memory limit, or widen your filters.`;
       els.list.appendChild(empty);
     } else {
-      sortedFitting.forEach((r) => els.list.appendChild(renderMacRow(r)));
+      sortedFitting.forEach((r) => els.list.appendChild(renderMacRow(r, mine)));
     }
 
     const heading = document.getElementById("results-heading");
