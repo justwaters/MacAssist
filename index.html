@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MacAssist — which Mac runs your local model, and how fast</title>
+<meta name="description" content="Pick a local model size. See which Macs can run it, how many tokens per second to expect, and the cheapest memory configuration that fits." />
+
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<meta name="theme-color" content="#EEF2F1" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#10161A" media="(prefers-color-scheme: dark)" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="MacAssist" />
+<meta property="og:title" content="Which Mac runs your local model — and how fast" />
+<meta property="og:description" content="Pick a model size. Get every Apple Silicon Mac that fits it, the estimated tokens per second, and the cheapest memory configuration that works." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="page">
+
+  <header class="site-header">
+    <div class="wordmark">
+      <svg class="wordmark__mark" width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+        <path d="M1 6V1H6" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M21 6V1H16" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M1 16V21H6" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M21 16V21H16" stroke="currentColor" stroke-width="1.6"/>
+        <rect x="6.5" y="6.5" width="9" height="9" stroke="currentColor" stroke-width="1.6"/>
+      </svg>
+      <span>MacAssist</span>
+      <a class="byline" href="https://justin.1waters.com" target="_blank" rel="noopener">by justwaters</a>
+    </div>
+    <a class="site-header__link" href="#how-it-works">How speed is estimated</a>
+  </header>
+
+  <main>
+
+    <section class="intro">
+      <h1>Pick a model size. See which Macs run it — and how fast.</h1>
+      <p class="intro__sub">Every Apple Silicon Mac below is checked against the model's real memory footprint, with a tokens-per-second estimate from its memory bandwidth and the cheapest memory configuration that fits.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="model-heading">
+      <h2 id="model-heading" class="panel__title"><span class="panel__tick"></span>Your model</h2>
+
+      <div class="field" style="margin-top:18px;">
+        <span class="field__label" id="size-label">Model size</span>
+        <div class="segmented" id="size-options" role="radiogroup" aria-labelledby="size-label"></div>
+        <span class="size-examples" id="size-examples"></span>
+      </div>
+
+      <div class="field-grid">
+        <label class="field">
+          <span class="field__label">Quantization</span>
+          <select id="quant" class="field__input"></select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Context length</span>
+          <select id="context" class="field__input"></select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Budget <em>(optional, USD)</em></span>
+          <input class="field__input field__input--mono" type="number" id="budget" min="0" step="100" placeholder="No limit" />
+        </label>
+      </div>
+
+      <p class="npu-note" id="footprint-note"></p>
+    </section>
+
+    <div class="layout">
+      <aside class="filter-pane" aria-label="Sort and filter results">
+        <div class="filter-pane__mobile-header">
+          <span>Filters</span>
+          <button type="button" class="filter-pane__done" id="filter-sheet-done">Done</button>
+        </div>
+
+        <details class="filter-group" open>
+          <summary class="filter-group__title">Sort by</summary>
+          <div class="filter-group__body" id="sort-options"></div>
+        </details>
+
+        <details class="filter-group">
+          <summary class="filter-group__title">Lineup</summary>
+          <div class="filter-group__body" id="lineup-filters"></div>
+        </details>
+
+        <details class="filter-group">
+          <summary class="filter-group__title">Form factor</summary>
+          <div class="filter-group__body" id="form-filters"></div>
+        </details>
+
+        <details class="filter-group">
+          <summary class="filter-group__title">Chip tier</summary>
+          <div class="filter-group__body" id="tier-filters"></div>
+        </details>
+
+        <details class="filter-group">
+          <summary class="filter-group__title">Advanced</summary>
+          <div class="filter-group__body">
+            <label class="filter-check">
+              <input type="checkbox" id="show-tight" checked />
+              <span>Include tight fits</span>
+            </label>
+            <p class="filter-check-hint">Configurations where the model uses more than 80% of the memory macOS gives the GPU. They'll run, but with little room for anything else.</p>
+
+            <label class="filter-check">
+              <input type="checkbox" id="raise-gpu-limit" />
+              <span>Raise the GPU memory limit</span>
+            </label>
+            <p class="filter-check-hint">By default macOS lets the GPU use about ⅔ of memory (¾ on 64&nbsp;GB+ Macs). You can raise it to all but ~8&nbsp;GB with <code>sudo sysctl iogpu.wired_limit_mb=&lt;MB&gt;</code> — resets on reboot.</p>
+          </div>
+        </details>
+
+        <button type="button" class="reset-filters" id="reset-filters">Reset filters</button>
+      </aside>
+
+      <div class="filter-sheet-backdrop" id="filter-sheet-backdrop" hidden></div>
+      <button type="button" class="mobile-filter-fab" id="mobile-filter-fab">
+        Filters<span class="mobile-filter-fab__badge" id="mobile-filter-badge" hidden></span>
+      </button>
+
+      <section class="results" aria-labelledby="results-heading">
+        <div class="results__header">
+          <h2 id="results-heading" class="results__count"></h2>
+        </div>
+
+        <div id="results-list" class="results-list"></div>
+
+        <details class="excluded" id="excluded-wrap" hidden>
+          <summary id="excluded-summary"></summary>
+          <div id="excluded-list" class="excluded-list"></div>
+        </details>
+      </section>
+    </div>
+
+    <section class="footnote" id="how-it-works">
+      <div class="footnote__prose">
+        <h2 class="footnote__title">How the fit — and the speed — are estimated</h2>
+        <p><strong>Speed.</strong> Generating each token means reading every active weight out of memory once, so on Apple Silicon decode speed is limited by memory bandwidth, not compute: tokens/sec ≈ bandwidth ÷ bytes read per token. Nobody hits the theoretical ceiling, so we discount it by what llama.cpp actually achieves — about 65% on base and Pro chips, 57% on Max chips, and 45% on Ultras, whose two stitched-together dies cost some efficiency. MLX is often 10–20% faster than that.</p>
+        <p><strong>Mixture-of-experts.</strong> A mixture-of-experts model like Gemma 4 26B-A4B has to fit all 26B parameters in memory, but only reads the ~4B active ones per token — so it's sized like a 26B model and runs closer to a 4B one. Expert routing costs some efficiency, so we discount MoE speed a further 30%.</p>
+        <p><strong>Context.</strong> The KV cache grows with every token of context, adding to memory and to what has to be read per token. The first speed number is for a short conversation; the second is with the context window full, which is the slowest it gets.</p>
+        <p><strong>Fit.</strong> The model's footprint is its quantized weights, plus the KV cache for your chosen context, plus ~1&nbsp;GB of runtime overhead. It has to fit in what macOS lets the GPU use — about two-thirds of memory on Macs with 36&nbsp;GB or less, three-quarters above that — not the full amount on the spec sheet.</p>
+        <p><strong>Not covered:</strong> prompt processing (time to first token), which depends on GPU compute rather than bandwidth and is where newer chips with Neural Accelerators pull far ahead. Long pasted documents will feel much slower on older and smaller chips than the numbers here suggest.</p>
+        <p><strong>Prices</strong> are US Apple Store prices with base storage, as of September 2026. Previous-generation Macs are listed without prices since they're only sold used or refurbished.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p>Speeds and memory footprints are estimates. Real numbers vary with runtime, model, and settings.</p>
+  </footer>
+
+</div>
+
+<div class="compare-tray" id="compare-tray" hidden>
+  <div class="compare-tray__items" id="compare-tray-items"></div>
+  <div class="compare-tray__actions">
+    <button type="button" class="compare-tray__clear" id="compare-clear">Clear</button>
+    <button type="button" class="compare-tray__open" id="compare-open">Compare</button>
+  </div>
+</div>
+
+<div class="compare-overlay" id="compare-overlay" hidden>
+  <div class="compare-panel" role="dialog" aria-modal="true" aria-labelledby="compare-title">
+    <div class="compare-panel__header">
+      <h2 id="compare-title">Comparing Macs</h2>
+      <button type="button" class="compare-panel__close" id="compare-close">Close</button>
+    </div>
+    <div class="compare-panel__body" id="compare-body"></div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
