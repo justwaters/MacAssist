@@ -49,10 +49,17 @@
     <section class="panel" aria-labelledby="model-heading">
       <h2 id="model-heading" class="panel__title"><span class="panel__tick"></span>Your model</h2>
 
-      <div class="field" style="margin-top:18px;">
-        <span class="field__label" id="size-label">Model size</span>
-        <div class="segmented" id="size-options" role="radiogroup" aria-labelledby="size-label"></div>
-        <span class="size-examples" id="size-examples"></span>
+      <div class="size-row">
+        <div class="field">
+          <span class="field__label" id="size-label">Model size</span>
+          <div class="segmented" id="size-options" role="radiogroup" aria-labelledby="size-label"></div>
+          <span class="size-examples" id="size-examples"></span>
+        </div>
+
+        <label class="field size-row__search">
+          <span class="field__label">Find your Mac</span>
+          <input class="field__input" type="search" id="mac-search" placeholder="e.g. M2 Max, Mac mini, MacBook Air" autocomplete="off" />
+        </label>
       </div>
 
       <div class="field-grid">

@@ -5,6 +5,7 @@
     quant: document.getElementById("quant"),
     context: document.getElementById("context"),
     budget: document.getElementById("budget"),
+    macSearch: document.getElementById("mac-search"),
     footprintNote: document.getElementById("footprint-note"),
     sortOptions: document.getElementById("sort-options"),
     lineupFilters: document.getElementById("lineup-filters"),
@@ -223,7 +224,24 @@
     return { mac, configs, chosen, status: chosen.status, tps, tpsFull };
   }
 
-  function evaluate(mac, fp, budget) {
+  // Every word typed has to appear somewhere in the Mac's name, chip, variant, or year —
+  // so "m4 max" or "studio ultra" narrow down the way you'd expect.
+  function searchTerms() {
+    return normalizeSearch(els.macSearch.value).split(/\s+/).filter(Boolean);
+  }
+
+  function normalizeSearch(text) {
+    return text.toLowerCase().replace(/[″"]/g, "").replace(/-/g, " ");
+  }
+
+  function matchesSearch(mac, terms) {
+    if (terms.length === 0) return true;
+    const haystack = normalizeSearch(`${mac.name} ${mac.chip} ${mac.variant} ${mac.year} ${mac.current ? "current new" : "used"}`);
+    return terms.every((t) => haystack.includes(t));
+  }
+
+  function evaluate(mac, fp, budget, terms) {
+    if (!matchesSearch(mac, terms)) return null;
     const lineup = mac.current ? "current" : "previous";
     if (!state.lineups.has(lineup)) return null;
     if (mac.form !== "any" && !state.forms.has(mac.form)) return null;
@@ -274,6 +292,10 @@
 
   function formatContext(tokens) {
     return `${tokens / 1024}K`;
+  }
+
+  function escapeHTML(text) {
+    return text.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   }
 
   function speedLabel(tps) {
@@ -387,13 +409,14 @@
   function render() {
     const fp = computeFootprint();
     const budget = parseFloat(els.budget.value) || 0;
+    const terms = searchTerms();
     renderFootprintNote(fp);
 
     const fitting = [];
     const excluded = [];
 
     MACS.forEach((mac) => {
-      const result = evaluate(mac, fp, budget);
+      const result = evaluate(mac, fp, budget, terms);
       if (!result) return;
       if (result.status === "over" || result.status === "over-budget") excluded.push(result);
       else fitting.push(result);
@@ -405,7 +428,10 @@
     if (sortedFitting.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty-state";
-      empty.innerHTML = `<strong>No Mac in this selection can run it.</strong> Try a smaller quantization or shorter context, turn on the raised GPU memory limit, or widen your filters.`;
+      const searched = terms.length > 0 && excluded.length === 0;
+      empty.innerHTML = searched
+        ? `<strong>No Mac matches “${escapeHTML(els.macSearch.value.trim())}”.</strong> Try a chip name like “M3 Pro” or a model like “Mac mini”.`
+        : `<strong>No Mac in this selection can run it.</strong> Try a smaller quantization or shorter context, turn on the raised GPU memory limit, or widen your filters.`;
       els.list.appendChild(empty);
     } else {
       sortedFitting.forEach((r) => els.list.appendChild(renderMacRow(r)));
@@ -415,7 +441,9 @@
     heading.textContent =
       sortedFitting.length > 0
         ? `${sortedFitting.length} Mac${sortedFitting.length === 1 ? "" : "s"} can run a ${fp.size.label} model at ${fp.quant.id}`
-        : "No Macs fit yet";
+        : terms.length > 0 && excluded.length === 0
+          ? "No matching Macs"
+          : "No Macs fit yet";
 
     if (excluded.length > 0) {
       excluded.sort((a, b) => (b.largest ? b.largest.ramGB : Infinity) - (a.largest ? a.largest.ramGB : Infinity));
@@ -585,6 +613,7 @@
 
     [els.quant, els.context, els.showTight, els.raiseGpuLimit].forEach((el) => el.addEventListener("change", render));
     els.budget.addEventListener("input", render);
+    els.macSearch.addEventListener("input", render);
     els.resetFilters.addEventListener("click", resetFilters);
 
     els.compareClear.addEventListener("click", () => {

@@ -1011,3 +1011,21 @@ button { font-family: inherit; }
   .segmented__option:nth-last-child(-n + 3) { border-bottom: none; }
   .speed__label { margin-left: 0; flex-basis: 100%; }
 }
+
+/* Model size + Mac search share the first row of the model panel. */
+.size-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px 24px;
+  margin-top: 18px;
+}
+.size-row__search {
+  flex: 1;
+  min-width: 0;
+  max-width: 340px;
+  margin-left: auto;
+}
+@media (max-width: 760px) {
+  .size-row { flex-direction: column; align-items: stretch; }
+  .size-row__search { max-width: none; margin-left: 0; }
+}
