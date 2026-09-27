@@ -1,5 +1,7 @@
 # MacAssist
 
+**[justwaters.github.io/MacAssist](https://justwaters.github.io/MacAssist/)**
+
 Pick a local model size — 3B, 7–8B, 12B, 26B, 31B, or 70–72B — and see which Apple Silicon Macs can run it, roughly how many tokens per second to expect, and the cheapest memory configuration that fits.
 
 Already have a Mac, or eyeing one? Type it into **Find your Mac** (e.g. `M2 Max`, `Mac mini`, `studio ultra`) to narrow the list to just those machines.
